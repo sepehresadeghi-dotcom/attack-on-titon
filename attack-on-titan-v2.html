@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attack on Titan - v2</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#111; display:flex; justify-content:center; align-items:center;
+    height:100vh; font-family: Tahoma, sans-serif; overflow:hidden;
+  }
+  #gameWrap {
+    position:relative; width:960px; height:540px;
+    background:#1a1a1a; border:2px solid #444; border-radius:8px; overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,.8);
+  }
+  canvas { display:block; background:#2b2b2b; cursor:crosshair; }
+  #hud {
+    position:absolute; top:0; left:0; right:0; padding:8px 12px;
+    display:flex; justify-content:space-between; color:#eee; font-size:14px;
+    pointer-events:none; text-shadow:0 1px 3px #000;
+  }
+  .bar { width:140px; height:10px; background:#333; border-radius:5px; overflow:hidden; margin-top:3px; }
+  .bar > div { height:100%; transition:width .1s; }
+  #gasBar > div { background:#4fc3f7; }
+  #bladeBar > div { background:#ef5350; }
+  #hpBar > div { background:#66bb6a; }
+  .hudBox { background:rgba(0,0,0,.4); padding:6px 10px; border-radius:6px; }
+  .overlay {
+    position:absolute; inset:0; background:rgba(0,0,0,.85);
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    color:#fff; z-index:10; padding:20px; text-align:center;
+  }
+  .overlay.hidden { display:none; }
+  .overlay h1 { font-size:42px; margin-bottom:10px; color:#e53935; text-shadow:0 0 20px #e53935; }
+  .overlay h2 { font-size:26px; margin-bottom:20px; color:#ffd54f; }
+  .overlay p { margin:5px 0; font-size:15px; color:#ccc; }
+  .overlay button {
+    margin-top:22px; padding:12px 36px; font-size:18px;
+    background:linear-gradient(#e53935,#b71c1c); color:#fff; border:none;
+    border-radius:8px; cursor:pointer; font-family:inherit;
+    box-shadow:0 4px 0 #7f0000; transition:transform .1s;
+  }
+  .overlay button:hover { transform:translateY(-2px); }
+  .overlay button:active { transform:translateY(2px); box-shadow:0 2px 0 #7f0000; }
+  .keys { margin-top:20px; text-align:right; font-size:13px; color:#aaa; line-height:1.9; }
+  .keys b { color:#4fc3f7; }
+  #levelInfo { position:absolute; bottom:10px; right:12px; color:#888; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="gameWrap">
+  <canvas id="game" width="960" height="540"></canvas>
+  <div id="hud">
+    <div class="hudBox">
+      <div>جان: <span id="hpTxt">100</span></div>
+      <div class="bar" id="hpBar"><div style="width:100%"></div></div>
+    </div>
+    <div class="hudBox">
+      <div>گاز: <span id="gasTxt">100</span></div>
+      <div class="bar" id="gasBar"><div style="width:100%"></div></div>
+      <div style="margin-top:5px;">تیغه: <span id="bladeTxt">100</span></div>
+      <div class="bar" id="bladeBar"><div style="width:100%"></div></div>
+    </div>
+    <div class="hudBox">
+      <div>تایتان‌ها: <span id="titanTxt">0</span></div>
+      <div style="margin-top:5px;">امتیاز: <span id="scoreTxt">0</span></div>
+    </div>
+  </div>
+  <div id="levelInfo"></div>
+
+  <div class="overlay" id="startMenu">
+    <h1>ATTACK ON TITAN v2</h1>
+    <h2>شکار تایتان‌ها</h2>
+    <p>پشت گردن تایتان‌ها رو با شمشیر بزن!</p>
+    <p style="color:#ffd54f;max-width:640px;">غول‌ها ۳ برابر بزرگ‌تر شده‌اند و فقط ناحیهٔ پس‌گردن کشنده است. وقتی وارد آن ناحیه شوی دوربین زوم می‌کند و «بزن!» ظاهر می‌شود؛ همان لحظه کلیک راست. هر ضربه تایتان را گیج می‌کند و ضربهٔ از پشت ۲ برابر آسیب دارد.</p>
+    <div class="keys">
+      <b>WASD / جهت‌نما</b> : پرواز و حرکت (W = بالا)<br>
+      <b>کلیک چپ</b> : نزدیک گردن = ضربه، دور = پرتاب لنگر<br>
+      <b>کلیک راست</b> : ضربه (نگه‌داشتن = ضربهٔ پیوسته)<br>
+      <b>کلیک وسط</b> : بوست گاز<br>
+      <b>R</b> : شارژ تیغه (با مصرف گاز)<br>
+      <b>ESC</b> : توقف / ادامه
+    </div>
+    <button onclick="startGame(1)">شروع بازی</button>
+  </div>
+
+  <div class="overlay hidden" id="levelMenu">
+    <h1>انتخاب مرحله</h1>
+    <p style="margin-bottom:20px;">سختی و تعداد تایتان‌ها افزایش می‌یابد</p>
+    <div style="display:flex; gap:15px;">
+      <button onclick="startGame(1)">مرحله ۱</button>
+      <button onclick="startGame(2)">مرحله ۲</button>
+      <button onclick="startGame(3)">مرحله ۳</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="pauseMenu">
+    <h1>توقف</h1>
+    <button onclick="resumeGame()">ادامه</button>
+    <button style="background:#455a64;box-shadow:0 4px 0 #263238;" onclick="showLevelMenu()">منوی مرحله</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverMenu">
+    <h1 style="color:#e53935;">مرگ!</h1>
+    <h2>امتیاز نهایی: <span id="finalScore">0</span></h2>
+    <button onclick="showLevelMenu()">منوی مرحله</button>
+  </div>
+
+  <div class="overlay hidden" id="winMenu">
+    <h1 style="color:#66bb6a;">پیروزی!</h1>
+    <h2>همه تایتان‌ها شکار شدند</h2>
+    <p>امتیاز این مرحله: <span id="winScore">0</span></p>
+    <button onclick="nextLevel()">مرحله بعد</button>
+    <button style="background:#455a64;box-shadow:0 4px 0 #263238;" onclick="showLevelMenu()">منوی مرحله</button>
+  </div>
+</div>
+
+<script>
+/* ================= ATTACK ON TITAN v2 ================= */
+
+/* fallback for older browsers that lack CanvasRenderingContext2D.roundRect */
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+    var rad = Math.min(typeof r === 'number' ? r : 0, Math.abs(w) / 2, Math.abs(h) / 2);
+    this.moveTo(x + rad, y);
+    this.arcTo(x + w, y, x + w, y + h, rad);
+    this.arcTo(x + w, y + h, x, y + h, rad);
+    this.arcTo(x, y + h, x, y, rad);
+    this.arcTo(x, y, x + w, y, rad);
+    this.closePath();
+    return this;
+  };
+}
+
+const canvas = document.getElementById('game');
+const ctx    = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const groundY = H - 60;
+
+const rand    = (a, b) => a + Math.random() * (b - a);
+const dist    = (x1, y1, x2, y2) => Math.hypot(x1 - x2, y1 - y2);
+const clamp   = (v, a, b) => Math.max(a, Math.min(b, v));
+const normalizeAngle = (a) => {
+  while (a >  Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
+};
+
+let state = 'menu';
+let level = 1;
+let score = 0;
+let keys = {};
+let winDelay = null;
+let hitStop = 0;
+
+/* camera: zooms onto the nape when the player gets close */
+const cam = { x: W / 2, y: H / 2, zoom: 1 };
+
+/* mouse buttons held down -> repeat the action */
+let leftHeld = false;
+let rightHeld = false;
+
+/* small on-screen messages + floating damage numbers */
+let toast = { text: '', time: 0 };
+let floaters = [];
+
+let titans = [];
+let particles = [];
+let bgBuildings = [];
+
+let mouseScreen = { x: W / 2, y: H / 2 };
+
+const player = {
+  x: W / 2, y: H / 2 - 80, vx: 0, vy: 0, r: 12,
+  facing: 1, walkPhase: 0,
+  hp: 100, gas: 100, blade: 100, onGround: false,
+  hook: null, hookFlying: null, hooked: false,
+  attacking: 0, attackDir: 0, bladeSpin: 0,
+  dead: false, hurtCd: 0, hurtFlash: 0,
+  boostTimer: 0, boostCooldown: 0
+};
+
+/* ---------- Input ---------- */
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if (e.key === 'Escape') {
+    if (state === 'playing') pauseGame();
+    else if (state === 'paused') resumeGame();
+  }
+  if (k === 'r') refillBlades();
+  if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+});
+window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouseScreen.x = (e.clientX - rect.left) * (W / rect.width);
+  mouseScreen.y = (e.clientY - rect.top)  * (H / rect.height);
+});
+
+/* keep keyboard focus on the canvas (works inside iframes / previews too) */
+canvas.setAttribute('tabindex', '0');
+canvas.addEventListener('pointerdown', () => { try { canvas.focus(); } catch (e) {} });
+window.addEventListener('blur', () => { leftHeld = false; rightHeld = false; keys = {}; });
+
+canvas.addEventListener('mousedown', (e) => {
+  if (state !== 'playing') return;
+  if (e.button === 0) {
+    e.preventDefault();
+    leftHeld = true;
+    /* close enough to a nape the left button swings the blade, otherwise it fires the hook */
+    if (reachableNape()) playerAttack();
+    else throwHook();
+  } else if (e.button === 1) {
+    e.preventDefault();
+    boost();
+  } else if (e.button === 2) {
+    e.preventDefault();
+    rightHeld = true;
+    playerAttack();
+  }
+});
+canvas.addEventListener('mouseup', (e) => {
+  if (e.button === 0) leftHeld = false;
+  if (e.button === 2) rightHeld = false;
+});
+canvas.addEventListener('mouseleave', () => { leftHeld = false; rightHeld = false; });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+canvas.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
+
+/* ---------- Level ---------- */
+function startGame(lvl) {
+  level = lvl;
+  score = 0;
+  state = 'playing';
+
+  player.x = W / 2;
+  player.y = H / 2 - 80;
+  player.vx = 0;
+  player.vy = 0;
+  player.facing = 1;
+  player.walkPhase = 0;
+  player.hp = 100;
+  player.gas = 100;
+  player.blade = 100;
+  player.hook = null;
+  player.hookFlying = null;
+  player.hooked = false;
+  player.attacking = 0;
+  player.bladeSpin = 0;
+  player.dead = false;
+  player.hurtCd = 0;
+  player.hurtFlash = 0;
+  player.boostTimer = 0;
+  player.boostCooldown = 0;
+  player.onGround = false;
+
+  titans = [];
+  particles = [];
+  floaters = [];
+  toast.time = 0;
+  leftHeld = false;
+  rightHeld = false;
+  winDelay = null;
+  hitStop = 0;
+  cam.x = W / 2;
+  cam.y = H / 2;
+  cam.zoom = 1;
+
+  buildBackground();
+  spawnTitans();
+  hideAllMenus();
+  document.getElementById('levelInfo').textContent = 'مرحله ' + level;
+  updateHUD();
+}
+
+function buildBackground() {
+  bgBuildings = [];
+  let x = -30;
+  while (x < W + 40) {
+    const w = rand(60, 130);
+    const h = rand(90, 300);
+    const b = { x: x, y: groundY - h, w: w, h: h, windows: [] };
+    for (let wy = b.y + 14; wy < groundY - 16; wy += 20) {
+      for (let wx = b.x + 10; wx < b.x + b.w - 12; wx += 18) {
+        if (Math.random() < 0.55) {
+          b.windows.push({ x: wx, y: wy, lit: Math.random() < 0.6 });
+        }
+      }
+    }
+    bgBuildings.push(b);
+    x += w + rand(12, 38);
+  }
+}
+
+function spawnTitans() {
+  const count = 3 + (level - 1);              /* 3 / 4 / 5 giant titans */
+  titans = [];
+  for (let i = 0; i < count; i++) {
+    const roll = Math.random();
+    const bigChance = 0.14 + level * 0.04;
+    let tier;
+    if (roll < bigChance)                  tier = 'big';
+    else if (roll < bigChance + 0.33)      tier = 'med';
+    else                                   tier = 'small';
+
+    let size, hp, speed;
+    /* titans are 3x bigger now: 60 / 84 / 114 */
+    if (tier === 'small')      { size = 60; hp = 1; speed = rand(0.45, 0.70); }
+    else if (tier === 'med')   { size = 84; hp = 2; speed = rand(0.35, 0.55); }
+    else                       { size = 114; hp = 3; speed = rand(0.25, 0.40); }
+
+    let x = 0, tries = 0;
+    const pad = size + 70;
+    do {
+      x = rand(Math.min(pad, W / 2), Math.max(W - pad, W / 2));
+      tries++;
+    } while (dist(x, groundY - size, player.x, player.y) < 170 + size && tries < 40);
+
+    titans.push({
+      x: x, y: groundY - size, r: size,
+      hp: hp, maxHp: hp, speed: speed,
+      facing: Math.random() < 0.5 ? 1 : -1,
+      walkPhase: Math.random() * Math.PI * 2,
+      mouthOpen: rand(0.3, 1),
+      hitFlash: 0, stagger: 0, turnCd: rand(20, 50), pause: 0, alive: true, deathFade: 0
+    });
+  }
+  updateTitanCount();
+}
+
+/* ---------- Menus ---------- */
+function hideAllMenus() {
+  ['startMenu', 'levelMenu', 'pauseMenu', 'gameOverMenu', 'winMenu'].forEach((id) => {
+    document.getElementById(id).classList.add('hidden');
+  });
+}
+function showLevelMenu() {
+  state = 'menu';
+  hideAllMenus();
+  document.getElementById('levelMenu').classList.remove('hidden');
+}
+function pauseGame() {
+  if (state !== 'playing') return;
+  state = 'paused';
+  document.getElementById('pauseMenu').classList.remove('hidden');
+}
+function resumeGame() {
+  if (state !== 'paused') return;
+  hideAllMenus();
+  state = 'playing';
+}
+function gameOver() {
+  state = 'over';
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('gameOverMenu').classList.remove('hidden');
+}
+function winLevel() {
+  state = 'win';
+  document.getElementById('winScore').textContent = score;
+  document.getElementById('winMenu').classList.remove('hidden');
+}
+function nextLevel() {
+  if (level >= 3) { showLevelMenu(); return; }
+  startGame(level + 1);
+}
+
+/* ---------- Actions ---------- */
+function throwHook() {
+  if (state !== 'playing') return;
+  if (player.hooked) { releaseHook(); return; }
+  if (player.hookFlying) return;
+  if (player.gas <= 0) { showToast('گاز تموم شده — چند لحظه صبر کن'); return; }
+
+  /* aim assist: snap the hook onto a nearby titan if we are roughly aiming at it */
+  const mw = screenToWorld(mouseScreen.x, mouseScreen.y);
+  let tx = mw.x, ty = mw.y;
+  const aim = Math.atan2(ty - player.y, tx - player.x);
+  const snap = titanInCone(aim, 430, 0.42);
+  if (snap) { tx = snap.x; ty = snap.y; }
+
+  const dx = tx - player.x;
+  const dy = ty - player.y;
+  const d  = Math.hypot(dx, dy) || 1;
+
+  player.hookFlying = {
+    x: player.x, y: player.y,
+    vx: dx / d * 28, vy: dy / d * 28,
+    life: 0
+  };
+  player.gas = Math.max(0, player.gas - 2);
+}
+
+function releaseHook() {
+  if (player.hooked && player.hook) {
+    const dx = player.hook.x - player.x;
+    const dy = player.hook.y - player.y;
+    const d  = Math.hypot(dx, dy) || 1;
+    player.vx += dx / d * 7;
+    player.vy += dy / d * 7 - 2;
+  }
+  player.hooked = false;
+  player.hook = null;
+  player.hookFlying = null;
+}
+
+function boost() {
+  if (state !== 'playing') return;
+  if (player.boostCooldown > 0) return;
+  if (player.gas < 6) { showToast('گاز کافی نیست'); return; }
+
+  let dx, dy;
+  if (player.hooked && player.hook) {
+    dx = player.hook.x - player.x;
+    dy = player.hook.y - player.y;
+  } else {
+    const mw = screenToWorld(mouseScreen.x, mouseScreen.y);
+    dx = mw.x - player.x;
+    dy = mw.y - player.y;
+  }
+  const d = Math.hypot(dx, dy) || 1;
+
+  player.vx += dx / d * 14;
+  player.vy += dy / d * 14 - 1.5;
+  player.gas = Math.max(0, player.gas - 6);
+  player.boostTimer = 12;
+  player.boostCooldown = 14;
+
+  for (let i = 0; i < 12; i++) {
+    particles.push({
+      x: player.x, y: player.y,
+      vx: -dx / d * rand(2, 6) + rand(-2, 2),
+      vy: -dy / d * rand(2, 6) + rand(-2, 2),
+      life: 20, maxLife: 20, color: '#4fc3f7', size: rand(2, 4)
+    });
+  }
+}
+
+/* ---------- Helpers: nape targeting ---------- */
+/* the camera can zoom in, so mouse pixels must be converted to world units */
+function screenToWorld(sx, sy) {
+  return {
+    x: cam.x + (sx - W / 2) / cam.zoom,
+    y: cam.y + (sy - H / 2) / cam.zoom
+  };
+}
+
+function napeOf(t) {
+  return { x: t.x - t.facing * t.r * 0.55, y: t.y - t.r * 0.60 };
+}
+
+function nearestNape(maxDist) {
+  let best = null, bestD = maxDist;
+  for (const t of titans) {
+    if (!t.alive) continue;
+    const n = napeOf(t);
+    const d = dist(player.x, player.y, n.x, n.y);
+    if (d < bestD) { bestD = d; best = { t: t, nx: n.x, ny: n.y, d: d }; }
+  }
+  return best;
+}
+
+function titanInCone(angle, maxDist, halfAngle) {
+  let best = null, bestD = maxDist;
+  for (const t of titans) {
+    if (!t.alive) continue;
+    const cx = t.x, cy = t.y - t.r * 0.3;
+    const d = dist(player.x, player.y, cx, cy);
+    if (d > bestD) continue;
+    const a = Math.atan2(cy - player.y, cx - player.x);
+    if (Math.abs(normalizeAngle(a - angle)) < halfAngle) {
+      bestD = d;
+      best = { x: cx, y: cy };
+    }
+  }
+  return best;
+}
+
+function nearestNapeInAim(maxDist, angle, halfAngle) {
+  let best = null, bestD = maxDist;
+  for (const t of titans) {
+    if (!t.alive) continue;
+    const n = napeOf(t);
+    const d = dist(player.x, player.y, n.x, n.y);
+    if (d > bestD) continue;
+    const a = Math.atan2(n.y - player.y, n.x - player.x);
+    if (Math.abs(normalizeAngle(a - angle)) > halfAngle) continue;
+    bestD = d;
+    best = { t: t, nx: n.x, ny: n.y, d: d };
+  }
+  return best;
+}
+
+/* the kill zone is the nape itself: it grows with the titan, not with the map */
+function napeHitRange(t) {
+  return clamp(t.r * 0.85, 46, 115);
+}
+
+/* nearest nape that is actually inside its kill zone right now */
+function reachableNape() {
+  let best = null, bestD = Infinity;
+  for (const t of titans) {
+    if (!t.alive) continue;
+    const n = napeOf(t);
+    const d = dist(player.x, player.y, n.x, n.y);
+    if (d <= napeHitRange(t) && d < bestD) {
+      bestD = d;
+      best = { t: t, nx: n.x, ny: n.y, d: d };
+    }
+  }
+  return best;
+}
+
+/* same, but also reports napes that are close to the kill zone (to show the ring) */
+function approachNape() {
+  let best = null, bestD = Infinity;
+  for (const t of titans) {
+    if (!t.alive) continue;
+    const n = napeOf(t);
+    const d = dist(player.x, player.y, n.x, n.y);
+    const zone = napeHitRange(t);
+    if (d <= zone * 1.8 && d < bestD) {
+      bestD = d;
+      best = { t: t, nx: n.x, ny: n.y, d: d, zone: zone, inside: d <= zone };
+    }
+  }
+  return best;
+}
+
+/* ---------- Camera: close-up on the nape ---------- */
+function updateCamera(dt) {
+  const k = 1 - Math.pow(0.86, Math.max(0.2, dt / 16.67));
+
+  let targetZoom = 1;
+  let tx = W / 2, ty = H / 2;
+
+  if (state === 'playing' || state === 'paused') {
+    const target = nearestNape(380);
+    if (target) {
+      /* 0 at 380px … 1 at 70px -> zoom grows from 1x to 1.85x */
+      const k2 = clamp(1 - (target.d - 70) / 310, 0, 1);
+      targetZoom = 1 + 0.85 * k2;
+      tx = player.x * 0.30 + target.nx * 0.70;
+      ty = player.y * 0.30 + target.ny * 0.70;
+    }
+  }
+
+  const halfW = W / (2 * targetZoom);
+  const halfH = H / (2 * targetZoom);
+  tx = clamp(tx, halfW, W - halfW);
+  ty = clamp(ty, halfH, H - halfH);
+
+  cam.zoom += (targetZoom - cam.zoom) * k;
+  cam.x += (tx - cam.x) * k;
+  cam.y += (ty - cam.y) * k;
+}
+
+function showToast(text) {
+  toast.text = text;
+  toast.time = 2200;
+}
+
+function spawnFloater(x, y, text, color) {
+  floaters.push({ x: x, y: y, text: text, color: color, life: 55, maxLife: 55 });
+}
+
+function playerAttack() {
+  if (state !== 'playing') return;
+  if (player.attacking > 0) return;
+
+  if (player.blade <= 0) {
+    showToast('تیغه تموم شده — کلید R را بزن');
+    return;
+  }
+
+  player.attacking = 16;
+  player.blade = Math.max(0, player.blade - 4);
+  const mw = screenToWorld(mouseScreen.x, mouseScreen.y);
+
+  /* aim assist only decides which way the animation swings */
+  const aimAngle = Math.atan2(mw.y - player.y, mw.x - player.x);
+  const assist = nearestNapeInAim(170, aimAngle, 1.35) || nearestNape(110);
+
+  player.attackDir = assist
+    ? Math.atan2(assist.ny - player.y, assist.nx - player.x)
+    : aimAngle;
+
+  updateHUD();
+
+  let hitAny = false;
+
+  for (const t of titans) {
+    if (!t.alive) continue;
+
+    /* weak point = back of the neck, exactly where it is drawn */
+    const n = napeOf(t);
+    const nx = n.x, ny = n.y;
+
+    /* 360° swing, but the kill zone is the nape itself */
+    const dp = dist(player.x, player.y, nx, ny);
+    if (dp > napeHitRange(t)) continue;
+
+    const playerSide = Math.sign(player.x - t.x) || 1;
+    const fromBehind = playerSide !== t.facing;
+    const fromAbove  = player.y < ny - 10;
+    const stunned    = t.stagger > 0;
+
+    /* every hit damages; behind / above / already stunned = critical x2 */
+    const napeHit = (fromBehind || fromAbove || stunned);
+    const dmg = napeHit ? 2 : 1;
+
+    t.hp -= dmg;
+    t.hitFlash = 12;
+    t.stagger = Math.max(t.stagger, 65);   /* long stun window to reposition */
+    player.attacking = 0;
+    score += napeHit ? 150 : 60;
+    spawnBlood(nx, ny, t.r);
+    spawnFloater(nx, ny - 16, napeHit ? '2!' : '1', napeHit ? '#ffeb3b' : '#ffffff');
+
+    if (t.hp <= 0) {
+      t.alive = false;
+      t.deathFade = 1;
+      score += 200;
+      spawnBlood(t.x, t.y - t.r, t.r * 1.5);
+      spawnFloater(t.x, t.y - t.r * 1.6, 'کشته شد!', '#ff8a80');
+      updateTitanCount();
+    }
+    hitAny = true;
+    updateHUD();
+  }
+
+  if (hitAny) {
+    spawnSpark(player.x, player.y);
+    hitStop = 70;              /* tiny freeze frame on impact */
+  }
+}
+
+function refillBlades() {
+  if (state !== 'playing') return;
+  const need = 100 - player.blade;
+  if (need <= 0) return;
+  const gasCost = Math.ceil(need * 0.4);
+  if (player.gas < gasCost) return;
+  player.gas -= gasCost;
+  player.blade = 100;
+  updateHUD();
+}
+
+function spawnBlood(x, y, r) {
+  for (let i = 0; i < 18; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = rand(1, 5);
+    particles.push({
+      x: x, y: y,
+      vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1,
+      life: rand(20, 40), maxLife: 40,
+      color: '#8b0000', size: rand(2, 5)
+    });
+  }
+}
+
+function spawnSpark(x, y) {
+  for (let i = 0; i < 10; i++) {
+    const a = Math.random() * Math.PI * 2;
+    particles.push({
+      x: x, y: y,
+      vx: Math.cos(a) * 3, vy: Math.sin(a) * 3,
+      life: 12, maxLife: 12, color: '#fff59d', size: 2
+    });
+  }
+}
+
+/* ---------- Update ---------- */
+function update(dt) {
+  if (state !== 'playing') return;
+  const step = Math.min(dt, 50) / 16.667;
+  const p = player;
+
+  p.hurtCd      = Math.max(0, p.hurtCd - step);
+  p.hurtFlash   = Math.max(0, p.hurtFlash - step);
+  if (p.boostTimer > 0)    p.boostTimer -= step;
+  if (p.boostCooldown > 0) p.boostCooldown -= step;
+
+  /* ---- movement input ---- */
+  let ax = 0, ay = 0;
+  if (keys['w'] || keys['arrowup'])    ay -= 1;
+  if (keys['s'] || keys['arrowdown'])  ay += 1;
+  if (keys['a'] || keys['arrowleft'])  ax -= 1;
+  if (keys['d'] || keys['arrowright']) ax += 1;
+
+  const thrusting = (ax !== 0 || ay !== 0) && p.gas > 0;
+
+  if (thrusting) {
+    const l = Math.hypot(ax, ay);
+    ax /= l; ay /= l;
+
+    if (p.hooked && p.hook) {
+      const dx = p.x - p.hook.x, dy = p.y - p.hook.y;
+      const d  = Math.hypot(dx, dy) || 1;
+      const nx = dx / d, ny = dy / d;
+      const tx = -ny,    ty = nx;               /* tangent to the rope */
+      const tangent = ax * tx + ay * ty;
+      const radial  = ax * nx + ay * ny;        /* reel in / pay out */
+
+      p.vx += (tx * tangent * 0.9 + nx * radial * 0.55) * step;
+      p.vy += (ty * tangent * 0.9 + ny * radial * 0.55) * step;
+    } else {
+      /* free flight: up-thrust beats gravity so WASD alone can lift you */
+      p.vx += ax * 0.65 * step;
+      p.vy += ay * 0.85 * step;
+    }
+    p.gas = Math.max(0, p.gas - 0.06 * step);
+  }
+
+  /* ---- gravity + drag ---- */
+  p.vy += (p.hooked ? 0.18 : 0.50) * step;
+  const drag = Math.pow(0.988, step);
+  p.vx *= drag;
+  p.vy *= drag;
+
+  const maxV = p.hooked ? 21 : 10;
+  const sp = Math.hypot(p.vx, p.vy);
+  if (sp > maxV) { p.vx = p.vx / sp * maxV; p.vy = p.vy / sp * maxV; }
+
+  p.x += p.vx * step;
+  p.y += p.vy * step;
+
+  /* ---- hook projectile ---- */
+  if (p.hookFlying) {
+    const hf = p.hookFlying;
+    hf.x += hf.vx * step;
+    hf.y += hf.vy * step;
+    hf.life += step;
+
+    if (hf.x < 0 || hf.x > W || hf.y < 0 || hf.y > groundY || hf.life > 60) {
+      p.hookFlying = null;
+    } else {
+      for (const t of titans) {
+        if (!t.alive) continue;
+        if (dist(hf.x, hf.y, t.x, t.y - t.r * 0.3) < t.r + 10) {
+          p.hook = { x: t.x, y: t.y - t.r * 0.3, titan: t };
+          p.hookFlying = null;
+          p.hooked = true;
+          break;
+        }
+      }
+      /* NOTE: the city skyline is background art only — the hook only
+         catches titans. (Buildings used to swallow the hook instantly,
+         which made the grapple feel broken.) */
+    }
+  }
+
+  /* ---- rope constraint ---- */
+  if (p.hooked && p.hook) {
+    if (p.hook.titan && !p.hook.titan.alive) {
+      releaseHook();
+    } else {
+      if (p.hook.titan) {
+        p.hook.x = p.hook.titan.x;
+        p.hook.y = p.hook.titan.y - p.hook.titan.r * 0.3;
+      }
+      const dx = p.x - p.hook.x, dy = p.y - p.hook.y;
+      const d  = Math.hypot(dx, dy) || 1;
+      const maxRope = 470;
+
+      if (d > maxRope) {
+        const nx = dx / d, ny = dy / d;
+        p.x = p.hook.x + nx * maxRope;
+        p.y = p.hook.y + ny * maxRope;
+        const dot = p.vx * nx + p.vy * ny;
+        if (dot > 0) {
+          p.vx -= dot * nx * 1.15;
+          p.vy -= dot * ny * 1.15;
+        }
+      }
+    }
+  }
+
+  /* ---- world bounds ---- */
+  if (p.y + p.r > groundY) {
+    p.y = groundY - p.r;
+    if (p.vy > 0) p.vy = 0;
+    p.onGround = true;
+  } else {
+    p.onGround = false;
+  }
+  if (p.x < p.r)      { p.x = p.r;     p.vx =  Math.abs(p.vx) * 0.5; }
+  if (p.x > W - p.r)  { p.x = W - p.r; p.vx = -Math.abs(p.vx) * 0.5; }
+  if (p.y < p.r)      { p.y = p.r;     p.vy =  Math.abs(p.vy) * 0.5; }
+
+  /* ---- gas / blade slowly come back so you can never get stuck ---- */
+  if (!thrusting) {
+    p.gas = Math.min(100, p.gas + (p.onGround ? 0.15 : 0.025) * step);
+  }
+  p.blade = Math.min(100, p.blade + 0.035 * step);
+
+  /* ---- facing / animation ---- */
+  if (Math.abs(p.vx) > 0.4) p.facing = p.vx > 0 ? 1 : -1;
+  const speedNow = Math.hypot(p.vx, p.vy);
+  if (p.onGround || speedNow > 1) {
+    p.walkPhase += speedNow * 0.15 * step;
+  }
+
+  if (p.attacking > 0) {
+    p.attacking -= step;
+    p.bladeSpin += 0.55 * step;
+  } else if (p.hooked) {
+    p.bladeSpin += 0.35 * step;
+  } else {
+    p.bladeSpin *= Math.pow(0.9, step);
+  }
+
+  /* holding the mouse button keeps swinging — no need to click repeatedly */
+  if (p.attacking <= 0 && (rightHeld || (leftHeld && reachableNape()))) {
+    playerAttack();
+  }
+
+  /* ---- titans ---- */
+  for (const t of titans) {
+    if (!t.alive) {
+      t.deathFade = Math.max(0, t.deathFade - 0.02 * step);
+      continue;
+    }
+    t.hitFlash = Math.max(0, t.hitFlash - step);
+
+    if (t.stagger > 0) {
+      /* stunned: cannot move or turn, giving the player a free window */
+      t.stagger -= step;
+      t.turnCd = Math.max(t.turnCd, 25);
+    } else {
+      t.turnCd = Math.max(0, t.turnCd - step);
+      if (t.pause > 0) t.pause -= step;
+
+      const dx = p.x - t.x;
+      const dir = dx >= 0 ? 1 : -1;
+
+      if (dir !== t.facing) {
+        /* slow, telegraphed turning: that is the window to reach the nape */
+        if (t.turnCd <= 0) {
+          t.facing = dir;
+          t.turnCd = 80;      /* cannot spin around again for ~1.3s */
+          t.pause = 34;       /* and stops to turn, so it lags behind */
+        }
+      } else if (t.pause <= 0) {
+        t.x += dir * t.speed * 0.45 * step;
+        t.walkPhase += t.speed * 0.25 * step;
+      }
+    }
+    t.y = groundY - t.r;
+    t.x = clamp(t.x, t.r, W - t.r);
+
+    const cd = dist(p.x, p.y, t.x, t.y - t.r * 0.5);
+    if (cd < p.r + t.r * 0.60 && p.hurtCd <= 0) {
+      p.hp -= 4 + t.r * 0.05;
+      p.hurtCd = 45;
+      p.hurtFlash = 14;
+
+      const kd = dist(p.x, p.y, t.x, t.y) || 1;
+      p.vx += (p.x - t.x) / kd * 4;
+      p.vy += (p.y - t.y) / kd * 4 - 1.5;
+      spawnBlood(p.x, p.y, 8);
+    }
+  }
+
+  /* ---- death & win ---- */
+  if (p.hp <= 0) {
+    p.hp = 0;
+    if (!p.dead) {
+      p.dead = true;
+      gameOver();
+    }
+  }
+
+  const allDead = titans.length > 0 && titans.every((t) => !t.alive);
+  if (allDead) {
+    if (winDelay === null) winDelay = 60;
+    winDelay -= step;
+    if (winDelay <= 0) {
+      winDelay = null;
+      winLevel();
+    }
+  }
+
+  /* ---- particles ---- */
+  for (const pt of particles) {
+    pt.x += pt.vx * step;
+    pt.y += pt.vy * step;
+    pt.vy += 0.15 * step;
+    pt.life -= step;
+  }
+  particles = particles.filter((pt) => pt.life > 0);
+
+  /* ---- floating damage numbers ---- */
+  for (const f of floaters) {
+    f.y -= 0.7 * step;
+    f.life -= step;
+  }
+  floaters = floaters.filter((f) => f.life > 0);
+
+  updateHUD();
+}
+
+/* ---------- Draw ---------- */
+function draw() {
+  const z = cam.zoom;
+  const inv = 1 / z;
+  const mw = screenToWorld(mouseScreen.x, mouseScreen.y);
+
+  /* world is drawn through the camera so the nape can zoom in */
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(z, z);
+  ctx.translate(-cam.x, -cam.y);
+
+  const grad = ctx.createLinearGradient(0, 0, 0, groundY);
+  grad.addColorStop(0, '#16181d');
+  grad.addColorStop(0.65, '#2a2e36');
+  grad.addColorStop(1, '#3a3f4a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, groundY);
+
+  /* buildings */
+  for (const b of bgBuildings) {
+    ctx.fillStyle = '#14161a';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = 'rgba(140,170,210,0.10)';
+    ctx.fillRect(b.x, b.y, b.w, 3);
+    for (const w of b.windows) {
+      ctx.fillStyle = w.lit ? 'rgba(255,214,120,0.20)' : 'rgba(120,150,190,0.07)';
+      ctx.fillRect(w.x, w.y, 7, 9);
+    }
+  }
+
+  /* ground */
+  ctx.fillStyle = '#3d4a2f';
+  ctx.fillRect(0, groundY, W, H - groundY);
+  ctx.fillStyle = '#2a331f';
+  ctx.fillRect(0, groundY, W, 6);
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let gx = 0; gx < W; gx += 24) {
+    ctx.moveTo(gx, groundY + 8);
+    ctx.lineTo(gx + 10, groundY + 8);
+  }
+  ctx.stroke();
+
+  for (const t of titans) {
+    if (t.alive || t.deathFade > 0) drawTitan(t);
+  }
+
+  /* kill-zone ring around the nape: faint when approaching, bright when inside */
+  if (state === 'playing' && player.attacking <= 0) {
+    const target = approachNape();
+    if (target) {
+      const R = target.zone;
+      const pulse = target.inside
+        ? 0.55 + 0.45 * Math.sin(performance.now() * 0.012)
+        : 0.22;
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      if (target.inside) {
+        ctx.fillStyle = 'rgba(255,235,59,0.10)';
+        ctx.beginPath();
+        ctx.arc(target.nx, target.ny, R, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.strokeStyle = '#ffeb3b';
+      ctx.lineWidth = (target.inside ? 2 : 1.2) * inv;
+      ctx.setLineDash([6 * inv, 5 * inv]);
+      ctx.beginPath();
+      ctx.arc(target.nx, target.ny, R, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (target.inside) {
+        ctx.fillStyle = '#ffeb3b';
+        ctx.font = 'bold ' + (16 * inv).toFixed(1) + 'px Tahoma';
+        ctx.textAlign = 'center';
+        ctx.fillText('بزن!', target.nx, target.ny - R - 10 * inv);
+      }
+      ctx.restore();
+      ctx.textAlign = 'start';
+    }
+  }
+
+  /* ropes */
+  if (player.hooked && player.hook) {
+    ctx.strokeStyle = '#d0d0d0';
+    ctx.lineWidth = 2 * inv;
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y);
+    ctx.lineTo(player.hook.x, player.hook.y);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd54f';
+    ctx.beginPath();
+    ctx.arc(player.hook.x, player.hook.y, 5 * inv, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1 * inv;
+    ctx.stroke();
+  }
+  if (player.hookFlying) {
+    const hf = player.hookFlying;
+    ctx.strokeStyle = '#ffd54f';
+    ctx.lineWidth = 2 * inv;
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y);
+    ctx.lineTo(hf.x, hf.y);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd54f';
+    ctx.beginPath();
+    ctx.arc(hf.x, hf.y, 4 * inv, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* aiming reticle (converted from screen pixels to world units) */
+  if (state === 'playing') {
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1 * inv;
+    ctx.setLineDash([4 * inv, 4 * inv]);
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y);
+    ctx.lineTo(mw.x, mw.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 1.5 * inv;
+    ctx.beginPath();
+    ctx.arc(mw.x, mw.y, 10 * inv, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(mw.x - 14 * inv, mw.y);
+    ctx.lineTo(mw.x + 14 * inv, mw.y);
+    ctx.moveTo(mw.x, mw.y - 14 * inv);
+    ctx.lineTo(mw.x, mw.y + 14 * inv);
+    ctx.stroke();
+  }
+
+  if (!player.dead) drawPlayer();
+
+  /* attack slash arc (world space) */
+  if (player.attacking > 0) {
+    const prog = 1 - player.attacking / 16;
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(player.attackDir);
+    const a0 = -1.2 + prog * 2.4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 6 * inv;
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 15 * inv;
+    ctx.beginPath();
+    ctx.arc(0, 0, 55, a0, a0 + 0.8);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(180,230,255,0.8)';
+    ctx.lineWidth = 3 * inv;
+    ctx.beginPath();
+    ctx.arc(0, 0, 65, a0, a0 + 0.8);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* particles */
+  for (const pt of particles) {
+    const a = clamp(pt.life / pt.maxLife, 0, 1);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = pt.color;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, Math.max(0.5, pt.size * a), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  /* floating damage numbers (world space, sized for the screen) */
+  for (const f of floaters) {
+    const fa = clamp(f.life / f.maxLife, 0, 1);
+    ctx.globalAlpha = fa;
+    ctx.fillStyle = f.color;
+    ctx.font = 'bold ' + (16 * inv).toFixed(1) + 'px Tahoma';
+    ctx.textAlign = 'center';
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'start';
+
+  ctx.restore();
+
+  /* vignette */
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, H * 0.85);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+
+  /* hurt flash */
+  if (player.hurtFlash > 0) {
+    const a = clamp(player.hurtFlash / 14, 0, 1) * 0.45;
+    const hg = ctx.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.8);
+    hg.addColorStop(0, 'rgba(180,0,0,0)');
+    hg.addColorStop(1, 'rgba(180,0,0,' + a + ')');
+    ctx.fillStyle = hg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* on-screen hint (out of blade / gas, etc.) */
+  if (toast.time > 0) {
+    const ta = Math.min(1, toast.time / 400);
+    ctx.save();
+    ctx.globalAlpha = ta;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(W / 2 - 210, H - 88, 420, 38);
+    ctx.strokeStyle = 'rgba(255,213,79,0.55)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(W / 2 - 210, H - 88, 420, 38);
+    ctx.fillStyle = '#ffd54f';
+    ctx.font = 'bold 16px Tahoma';
+    ctx.textAlign = 'center';
+    ctx.fillText(toast.text, W / 2, H - 63);
+    ctx.restore();
+    ctx.textAlign = 'start';
+  }
+}
+
+/* ========== DRAW PLAYER ========== */
+function drawPlayer() {
+  const p = player;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.scale(p.facing, 1);
+
+  const speed = Math.hypot(p.vx, p.vy);
+  const legSwing = p.onGround
+    ? Math.sin(p.walkPhase) * 0.5
+    : (speed > 2 ? Math.sin(p.walkPhase) * 0.4 : 0);
+
+  if (speed > 2) {
+    ctx.fillStyle = 'rgba(46,125,50,0.4)';
+    ctx.beginPath();
+    ctx.moveTo(-6, -14);
+    ctx.quadraticCurveTo(-25 - speed * 2, 0, -6, 14);
+    ctx.quadraticCurveTo(-15, 0, -6, -14);
+    ctx.fill();
+  }
+
+  if (p.onGround) {
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(0, 14, 10, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* legs */
+  ctx.strokeStyle = '#1b5e20';
+  ctx.lineWidth = 1.5;
+  ctx.fillStyle = '#2e7d32';
+  ctx.save();
+  ctx.translate(-3, 6);
+  ctx.rotate(legSwing);
+  ctx.beginPath(); ctx.roundRect(-2, 0, 4, 10, 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.roundRect(-3, 8, 6, 3, 1.5); ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = '#2e7d32';
+  ctx.save();
+  ctx.translate(3, 6);
+  ctx.rotate(-legSwing);
+  ctx.beginPath(); ctx.roundRect(-2, 0, 4, 10, 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.roundRect(-3, 8, 6, 3, 1.5); ctx.fill();
+  ctx.restore();
+
+  /* torso */
+  ctx.fillStyle = '#2e7d32';
+  ctx.strokeStyle = '#1b5e20';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(-6, -12, 12, 20, 3); ctx.fill(); ctx.stroke();
+
+  /* harness */
+  ctx.strokeStyle = '#3e2723';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(-6, -8); ctx.lineTo(6, 4);
+  ctx.moveTo(6, -8);  ctx.lineTo(-6, 4);
+  ctx.stroke();
+
+  /* belt */
+  ctx.fillStyle = '#5d4037';
+  ctx.fillRect(-6, 2, 12, 3);
+  ctx.fillStyle = '#ffd54f';
+  ctx.fillRect(-2, 2.5, 4, 2);
+
+  /* arms */
+  const armSwing = p.attacking > 0 ? 0 : Math.sin(p.walkPhase + Math.PI) * 0.6;
+  ctx.strokeStyle = '#2e7d32';
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-5, -8);
+  ctx.lineTo(-10, -2 + armSwing * 5);
+  ctx.stroke();
+  ctx.strokeStyle = '#388e3c';
+  ctx.beginPath();
+  ctx.moveTo(5, -8);
+  ctx.lineTo(11, -4 - armSwing * 5);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  /* head */
+  ctx.fillStyle = '#ffcc99';
+  ctx.strokeStyle = '#8d6e63';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(0, -18, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+  /* hair */
+  ctx.fillStyle = '#3e2723';
+  ctx.beginPath(); ctx.arc(0, -19, 7, Math.PI, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-3, -22, 4, 0, Math.PI * 2); ctx.fill();
+
+  /* eye */
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(3, -18, 1.3, 0, Math.PI * 2); ctx.fill();
+
+  /* mouth */
+  ctx.strokeStyle = '#8d6e63';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(1, -15); ctx.lineTo(5, -15); ctx.stroke();
+
+  /* gas tank */
+  ctx.fillStyle = '#607d8b';
+  ctx.strokeStyle = '#37474f';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(-9, -6, 4, 9, 1.5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#90a4ae';
+  ctx.fillRect(-8, -8, 2, 3);
+
+  /* front blade */
+  ctx.save();
+  ctx.translate(11, -4 - armSwing * 5);
+  let bladeRot;
+  if (p.attacking > 0) {
+    const prog = 1 - p.attacking / 16;
+    bladeRot = -1.2 + prog * 2.4;
+  } else if (p.hooked) {
+    bladeRot = p.bladeSpin;
+  } else {
+    bladeRot = -0.3 + armSwing * 0.3;
+  }
+  ctx.rotate(bladeRot);
+  ctx.fillStyle = '#5d4037';
+  ctx.fillRect(-1.5, -2, 3, 6);
+  ctx.fillStyle = '#cfd8dc';
+  ctx.strokeStyle = '#90a4ae';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, 0);
+  ctx.lineTo(-1.5, 16);
+  ctx.lineTo(0, 18);
+  ctx.lineTo(1.5, 16);
+  ctx.lineTo(1.5, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 2);
+  ctx.lineTo(0, 15);
+  ctx.stroke();
+  ctx.restore();
+
+  /* back blade */
+  ctx.save();
+  ctx.translate(-10, -2 + armSwing * 5);
+  ctx.rotate(0.5);
+  ctx.fillStyle = '#5d4037';
+  ctx.fillRect(-1, -2, 2, 5);
+  ctx.fillStyle = '#b0bec5';
+  ctx.beginPath();
+  ctx.moveTo(-1, 0);
+  ctx.lineTo(-1, 12);
+  ctx.lineTo(0, 13);
+  ctx.lineTo(1, 12);
+  ctx.lineTo(1, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  /* boost flame */
+  if (p.boostTimer > 0) {
+    const bf = p.boostTimer / 12;
+    ctx.globalAlpha = bf;
+    const grad = ctx.createRadialGradient(-7, -3, 0, -7, -3, 15);
+    grad.addColorStop(0, '#4fc3f7');
+    grad.addColorStop(1, 'rgba(79,195,247,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(-7, -3, 15, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#4fc3f7';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-7, -3);
+      ctx.lineTo(-7 - rand(10, 20), -3 + rand(-8, 8));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* small swing arc in front of the blade */
+  if (p.attacking > 0) {
+    const prog = 1 - p.attacking / 16;
+    ctx.save();
+    ctx.translate(11, -4);
+    ctx.rotate(-1.2 + prog * 2.4);
+    ctx.strokeStyle = 'rgba(255,255,255,' + (1 - prog) + ')';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(0, 0, 20, -0.4, 0.4);
+    ctx.stroke();
+    ctx.restore();
+    ctx.shadowBlur = 0;
+  }
+
+  ctx.restore();
+}
+
+/* ========== DRAW TITAN ========== */
+function drawTitan(t) {
+  ctx.save();
+  ctx.translate(t.x, t.y);
+  if (!t.alive) ctx.globalAlpha = t.deathFade;
+
+  const r = t.r;
+  const flash = t.hitFlash > 0;
+  const bodyColor = flash ? '#b71c1c' : '#1a1a1a';
+  const outlineColor = flash ? '#ff5252' : '#000';
+
+  /* shadow */
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(0, r * 0.95, r * 0.9, r * 0.25, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.scale(t.facing, 1);
+
+  const legSwing = Math.sin(t.walkPhase) * 0.6;
+  const armSwing = Math.sin(t.walkPhase + Math.PI) * 0.5;
+
+  /* legs */
+  ctx.fillStyle = bodyColor;
+  ctx.strokeStyle = outlineColor;
+  ctx.lineWidth = 1.5;
+
+  ctx.save();
+  ctx.translate(-r * 0.2, r * 0.5);
+  ctx.rotate(-legSwing);
+  ctx.beginPath(); ctx.roundRect(-r * 0.15, 0, r * 0.3, r * 0.55, r * 0.1); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(r * 0.05, r * 0.55, r * 0.2, r * 0.08, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = bodyColor;
+  ctx.save();
+  ctx.translate(r * 0.2, r * 0.5);
+  ctx.rotate(legSwing);
+  ctx.beginPath(); ctx.roundRect(-r * 0.15, 0, r * 0.3, r * 0.55, r * 0.1); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(r * 0.05, r * 0.55, r * 0.2, r * 0.08, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  /* torso */
+  ctx.fillStyle = bodyColor;
+  ctx.strokeStyle = outlineColor;
+  ctx.beginPath(); ctx.roundRect(-r * 0.45, -r * 0.4, r * 0.9, r * 1.0, r * 0.2); ctx.fill(); ctx.stroke();
+
+  ctx.strokeStyle = flash ? '#ff8a80' : '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 0.3); ctx.lineTo(0, r * 0.4);
+  ctx.moveTo(-r * 0.3, -r * 0.05); ctx.lineTo(-r * 0.1, -r * 0.05);
+  ctx.moveTo(r * 0.1, -r * 0.05);  ctx.lineTo(r * 0.3, -r * 0.05);
+  ctx.stroke();
+
+  /* arms */
+  ctx.fillStyle = bodyColor;
+  ctx.strokeStyle = outlineColor;
+  ctx.lineWidth = 1.5;
+
+  ctx.save();
+  ctx.translate(-r * 0.5, -r * 0.25);
+  ctx.rotate(-armSwing * 0.8);
+  ctx.beginPath(); ctx.roundRect(-r * 0.15, 0, r * 0.28, r * 0.7, r * 0.1); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, r * 0.75, r * 0.15, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = bodyColor;
+  ctx.save();
+  ctx.translate(r * 0.5, -r * 0.25);
+  ctx.rotate(armSwing * 0.8);
+  ctx.beginPath(); ctx.roundRect(-r * 0.13, 0, r * 0.28, r * 0.7, r * 0.1); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, r * 0.75, r * 0.15, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  /* neck */
+  ctx.fillStyle = bodyColor;
+  ctx.strokeStyle = outlineColor;
+  ctx.beginPath(); ctx.roundRect(-r * 0.15, -r * 0.55, r * 0.3, r * 0.2, r * 0.05); ctx.fill(); ctx.stroke();
+
+  /* head */
+  ctx.fillStyle = bodyColor;
+  ctx.strokeStyle = outlineColor;
+  ctx.beginPath(); ctx.arc(0, -r * 0.75, r * 0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+  /* mouth */
+  const mouthH = r * 0.18 * (0.5 + t.mouthOpen * 0.5);
+  ctx.fillStyle = '#4a0000';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.1, -r * 0.6, r * 0.25, mouthH, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#fff8e1';
+  for (let i = 0; i < 4; i++) {
+    const tx = r * 0.1 - r * 0.18 + i * (r * 0.12);
+    ctx.beginPath();
+    ctx.moveTo(tx, -r * 0.6 - mouthH * 0.6);
+    ctx.lineTo(tx + r * 0.04, -r * 0.6 - mouthH * 0.6);
+    ctx.lineTo(tx + r * 0.02, -r * 0.6 - mouthH * 0.15);
+    ctx.closePath();
+    ctx.fill();
+  }
+  for (let i = 0; i < 4; i++) {
+    const tx = r * 0.1 - r * 0.18 + i * (r * 0.12);
+    ctx.beginPath();
+    ctx.moveTo(tx, -r * 0.6 + mouthH * 0.6);
+    ctx.lineTo(tx + r * 0.04, -r * 0.6 + mouthH * 0.6);
+    ctx.lineTo(tx + r * 0.02, -r * 0.6 + mouthH * 0.15);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  /* eyes */
+  ctx.fillStyle = '#ffeb3b';
+  ctx.beginPath(); ctx.arc(r * 0.15, -r * 0.85, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.32, -r * 0.85, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.arc(r * 0.18, -r * 0.85, r * 0.035, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.35, -r * 0.85, r * 0.035, 0, Math.PI * 2); ctx.fill();
+
+  /* hair */
+  ctx.fillStyle = flash ? '#5d1010' : '#000';
+  ctx.beginPath(); ctx.arc(0, -r * 0.85, r * 0.42, Math.PI, Math.PI * 2); ctx.fill();
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(-r * 0.25 + i * r * 0.2, -r * 1.05, r * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* weak point: back of the neck (local coords, matches the hit test) */
+  const pulse = 1 + Math.sin(performance.now() * 0.008) * 0.3;
+  ctx.save();
+  ctx.translate(-r * 0.55, -r * 0.6);
+
+  const glowG = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.4 * pulse);
+  glowG.addColorStop(0, 'rgba(255,50,50,0.8)');
+  glowG.addColorStop(0.5, 'rgba(255,0,0,0.4)');
+  glowG.addColorStop(1, 'rgba(255,0,0,0)');
+  ctx.fillStyle = glowG;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.4 * pulse, 0, Math.PI * 2); ctx.fill();
+
+  ctx.fillStyle = '#e53935';
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.13, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.2, 0); ctx.lineTo(-r * 0.05, 0);
+  ctx.moveTo(r * 0.05, 0);  ctx.lineTo(r * 0.2, 0);
+  ctx.moveTo(0, -r * 0.2);  ctx.lineTo(0, -r * 0.05);
+  ctx.moveTo(0, r * 0.05);  ctx.lineTo(0, r * 0.2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
+
+  /* HP pips (world space, not mirrored) */
+  ctx.save();
+  ctx.translate(t.x, t.y);
+  const pipW = 7, gap = 3;
+  const totalW = t.maxHp * pipW + (t.maxHp - 1) * gap;
+  const startX = -totalW / 2;
+  for (let i = 0; i < t.maxHp; i++) {
+    ctx.fillStyle = i < t.hp ? '#e53935' : '#444';
+    ctx.fillRect(startX + i * (pipW + gap), -t.r - 20, pipW, 4);
+    if (i < t.hp) {
+      ctx.fillStyle = 'rgba(255,100,100,0.5)';
+      ctx.fillRect(startX + i * (pipW + gap), -t.r - 20, pipW, 1.5);
+    }
+  }
+
+  /* stun stars: this titan is open for a free hit */
+  if (t.alive && t.stagger > 0) {
+    const sw = performance.now() * 0.012;
+    ctx.fillStyle = '#ffe082';
+    for (let i = 0; i < 3; i++) {
+      const a = sw + i * Math.PI * 2 / 3;
+      const sx = Math.cos(a) * t.r * 0.6;
+      const sy = -t.r * 1.35 + Math.sin(a) * t.r * 0.18;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/* ---------- HUD ---------- */
+function updateHUD() {
+  const hpPct    = clamp(player.hp, 0, 100);
+  const gasPct   = clamp(player.gas, 0, 100);
+  const bladePct = clamp(player.blade, 0, 100);
+
+  document.getElementById('hpTxt').textContent    = Math.round(hpPct);
+  document.getElementById('gasTxt').textContent   = Math.round(gasPct);
+  document.getElementById('bladeTxt').textContent = Math.round(bladePct);
+
+  document.getElementById('hpBar').firstElementChild.style.width    = hpPct + '%';
+  document.getElementById('gasBar').firstElementChild.style.width   = gasPct + '%';
+  document.getElementById('bladeBar').firstElementChild.style.width = bladePct + '%';
+
+  document.getElementById('scoreTxt').textContent = score;
+}
+
+function updateTitanCount() {
+  const alive = titans.filter((t) => t.alive).length;
+  document.getElementById('titanTxt').textContent = alive;
+}
+
+/* ---------- Game loop ---------- */
+let lastTime = performance.now();
+
+function loop(now) {
+  const dt = Math.min(50, now - lastTime);
+  lastTime = now;
+  hitStop = Math.max(0, hitStop - dt);
+  toast.time = Math.max(0, toast.time - dt);
+  updateCamera(dt);
+  if (state === 'playing' && hitStop <= 0) update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- Init ---------- */
+buildBackground();
+updateHUD();
+updateTitanCount();
+requestAnimationFrame(loop);
+
+/* expose the handlers used by the inline HTML buttons */
+window.startGame     = startGame;
+window.showLevelMenu = showLevelMenu;
+window.resumeGame    = resumeGame;
+window.nextLevel     = nextLevel;
+</script>
+</body>
+</html>
+
